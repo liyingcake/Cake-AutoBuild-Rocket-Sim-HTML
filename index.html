@@ -1,0 +1,1025 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="离线单级液体火箭概念设计、试车与一维直飞教学模拟器">
+  <title>Rocket SIM · 单级火箭设计模拟器</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div class="app-shell" id="rocketApp">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true">▲</div>
+        <div>
+          <div class="eyebrow">PROPULSION CONCEPT LAB</div>
+          <h1>Rocket SIM</h1>
+        </div>
+      </div>
+      <div class="rocket-wisdom" id="rocketWisdom" aria-live="polite" aria-atomic="true">
+        <span class="rocket-wisdom-kind" id="rocketWisdomKind">轨道段子</span>
+        <span class="rocket-wisdom-copy"><span id="rocketWisdomText">正在装载火箭科学频道……</span><small id="rocketWisdomAttribution"></small></span>
+      </div>
+      <div class="design-status" aria-live="polite">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">计算就绪</span>
+        <span class="divider" aria-hidden="true"></span>
+        <strong id="designNameHeader">LOX/甲烷概念级</strong>
+      </div>
+      <div class="header-actions" aria-label="方案操作">
+        <button type="button" class="button button-ghost" id="restoreDefaultBtn">恢复默认火箭</button>
+        <button type="button" class="button button-ghost" id="saveDesignBtn">保存方案</button>
+        <button type="button" class="button button-ghost" id="compareBtn">双方案比较</button>
+        <button type="button" class="button button-ghost" id="exportBtn">导出 JSON</button>
+        <label class="button button-ghost file-button" for="importInput">导入</label>
+        <input id="importInput" class="sr-only" type="file" accept="application/json,.json">
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="config-panel" aria-label="设计向导">
+        <div class="panel-heading">
+          <div>
+            <span class="section-kicker">DESIGN INPUT</span>
+            <h2>设计向导</h2>
+          </div>
+          <span class="step-count" id="stepCount">1 / 5</span>
+        </div>
+
+        <nav class="design-section-nav" id="designSectionNav" aria-label="箭体部分">
+          <button type="button" class="design-section-button is-active" data-design-section-button="core" aria-pressed="true"><span>CORE</span>芯级 / 第一级</button>
+          <button type="button" class="design-section-button is-locked" data-design-section-button="boosters" aria-pressed="false" aria-disabled="true"><span>PARALLEL</span>并联助推器</button>
+          <button type="button" class="design-section-button" data-design-section-button="stage-0" data-serial-stage-button data-stage-index="0" aria-pressed="false"><span>STAGE 02</span>第二级</button>
+          <button type="button" class="design-section-button" data-design-section-button="stage-1" data-serial-stage-button data-stage-index="1" aria-pressed="false"><span>STAGE 03</span>第三级</button>
+          <button type="button" class="design-section-button design-section-add" id="addSerialStageBtn"><span>ADD STAGE</span>＋ 增加更多级</button>
+        </nav>
+
+        <nav class="step-nav" id="coreStepNav" aria-label="芯级设计步骤">
+          <button type="button" class="step-button is-active" data-step-button="0"><span>01</span>任务</button>
+          <button type="button" class="step-button" data-step-button="1"><span>02</span>推进剂</button>
+          <button type="button" class="step-button" data-step-button="2"><span>03</span>储箱</button>
+          <button type="button" class="step-button" data-step-button="3"><span>04</span>发动机</button>
+          <button type="button" class="step-button" data-step-button="4"><span>05</span>结构成本</button>
+        </nav>
+
+        <form id="designForm" autocomplete="off">
+          <section class="wizard-step is-active" data-step="0" aria-labelledby="missionHeading">
+            <div class="step-heading">
+              <span class="step-index">STEP 01</span>
+              <h3 id="missionHeading">任务与反算模式</h3>
+              <p>先决定哪组参数是输入，其他尺寸和性能将由同一模型反算。</p>
+            </div>
+
+            <label class="field full-span">
+              <span>方案名称</span>
+              <input class="input" id="designNameInput" type="text" data-bind="name" maxlength="40">
+            </label>
+            <label class="switch-field auto-name-field">
+              <input type="checkbox" id="autoNameToggle" data-bind="autoName">
+              <span><strong>自动生成方案名称</strong><small id="autoNamePreview">按箭体直径、推进剂和循环方式组合</small></span>
+            </label>
+
+            <details class="expert-details historical-preset-panel" open>
+              <summary>经典与现代火箭预设集</summary>
+              <div class="field-grid details-grid">
+                <label class="field full-span">
+                  <span>历史型号</span>
+                  <select class="select" id="historicalPresetSelect"></select>
+                </label>
+              </div>
+              <div class="selection-readout historical-preset-readout" id="historicalPresetReadout" aria-live="polite"></div>
+              <div class="debug-reset-row">
+                <span>载入后仍可编辑全部级段；只替换当前未保存参数，不删除方案库。</span>
+                <button class="button button-ghost" type="button" id="loadHistoricalPresetBtn">载入参考预设</button>
+              </div>
+            </details>
+
+            <fieldset class="mode-selector">
+              <legend>尺寸驱动方式</legend>
+              <label class="mode-option">
+                <input type="radio" name="sizingMode" value="mass" data-bind="sizingMode">
+                <span><strong>总量反算</strong><small>推进剂质量/体积 → 尺寸、燃时、Δv</small></span>
+              </label>
+              <label class="mode-option">
+                <input type="radio" name="sizingMode" value="delta-v" data-bind="sizingMode">
+                <span><strong>Δv 反算</strong><small>目标 Δv＋载荷 → 推进剂与级段</small></span>
+              </label>
+              <label class="mode-option">
+                <input type="radio" name="sizingMode" value="thrust-time" data-bind="sizingMode">
+                <span><strong>推力/燃时反算</strong><small>目标推力＋燃时 → 总量与储箱</small></span>
+              </label>
+            </fieldset>
+
+            <div class="field-grid mode-fields" data-mode-fields="mass">
+              <label class="field">
+                <span>输入类型</span>
+                <select class="select" data-bind="sizing.massInputKind">
+                  <option value="mass">可用推进剂质量</option>
+                  <option value="volume">可用推进剂总体积</option>
+                </select>
+              </label>
+              <label class="field" data-mass-kind="mass">
+                <span>推进剂质量 <b>kg</b></span>
+                <input class="input" type="number" min="1" max="20000000" step="100" data-bind="sizing.propellantMassKg">
+              </label>
+              <label class="field" data-mass-kind="volume">
+                <span>推进剂体积 <b>m³</b></span>
+                <input class="input" type="number" min="0.01" max="100000" step="0.1" data-bind="sizing.propellantVolumeM3">
+              </label>
+            </div>
+
+            <div class="field-grid mode-fields" data-mode-fields="delta-v">
+              <label class="field">
+                <span>目标理想 Δv <b>m/s</b></span>
+                <input class="input" type="number" min="50" max="15000" step="50" data-bind="sizing.targetDeltaV">
+              </label>
+            </div>
+
+            <div class="field-grid mode-fields" data-mode-fields="thrust-time">
+              <label class="field">
+                <span>总推力 <b>kN</b></span>
+                <input class="input" type="number" min="0.1" max="100000" step="10" data-bind="sizing.targetThrustKn">
+              </label>
+              <label class="field">
+                <span>目标燃时 <b>s</b></span>
+                <input class="input" type="number" min="0.5" max="3600" step="1" data-bind="sizing.burnTimeS">
+              </label>
+            </div>
+
+            <fieldset class="mission-diameter-controls">
+              <legend>箭体与储箱尺寸约束</legend>
+              <div class="field-grid">
+                <label class="field">
+                  <span>直径模式</span>
+                  <select class="select" data-bind="tanks.diameterMode">
+                    <option value="auto">按长径比自动</option>
+                    <option value="locked">锁定箭体直径</option>
+                  </select>
+                </label>
+                <label class="field" data-diameter-mode="locked">
+                  <span>锁定箭体/储箱直径 <b>m</b></span>
+                  <input class="input" type="number" min="0.2" max="20" step="0.05" data-bind="tanks.diameterM">
+                </label>
+                <label class="field full-span" data-diameter-mode="auto">
+                  <span>目标储箱组长径比</span>
+                  <input class="input" type="number" min="2" max="14" step="0.1" data-bind="tanks.targetAspect">
+                </label>
+              </div>
+              <small>与“储箱”步骤中的尺寸入口同步，便于在选择反算方式时一起调整火箭直径与长度。</small>
+            </fieldset>
+
+            <fieldset class="vehicle-extension-controls">
+              <legend>扩展构型</legend>
+              <label class="switch-field full-span">
+                <input type="checkbox" data-bind="boosters.enabled">
+                <span><strong>添加并联助推器</strong><small>开启后可从上方“并联助推器”切换到独立设计页；质量、推力、阻力、成本、可靠性与 Δv 均计入全箭。</small></span>
+              </label>
+            </fieldset>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>有效载荷 <b>kg</b></span>
+                <input class="input" type="number" min="0" max="1000000" step="10" data-bind="vehicle.payloadKg">
+              </label>
+              <label class="field">
+                <span>起飞目标类型</span>
+                <select class="select" data-bind="vehicle.liftoffTargetMode">
+                  <option value="twr">目标起飞推重比</option>
+                  <option value="acceleration">目标离架净加速度</option>
+                </select>
+              </label>
+              <label class="field" data-liftoff-target="twr">
+                <span>目标起飞推重比</span>
+                <input class="input" type="number" min="0.2" max="6" step="0.01" data-bind="vehicle.targetTwr">
+              </label>
+              <label class="field" data-liftoff-target="acceleration">
+                <span>目标离架净加速度 <b>m/s²</b></span>
+                <input class="input" type="number" min="0" max="50" step="0.1" data-bind="vehicle.targetLiftoffAccelMs2">
+              </label>
+              <label class="field">
+                <span>发动机数量</span>
+                <input class="input" type="number" min="1" max="40" step="1" data-bind="engine.engineCount">
+              </label>
+              <label class="field">
+                <span>计算环境</span>
+                <select class="select" data-bind="test.environment">
+                  <option value="sea">所选天体表面 / 大气飞行</option>
+                  <option value="vacuum">强制真空性能与飞行</option>
+                </select>
+              </label>
+            </div>
+
+            <details class="expert-details">
+              <summary>直飞专家参数</summary>
+              <div class="field-grid details-grid">
+                <label class="field"><span>阻力系数 Cd</span><input class="input" type="number" min="0.05" max="2" step="0.01" data-bind="vehicle.dragCoefficient"></label>
+                <label class="field"><span>发射海拔 <b>m</b></span><input class="input" type="number" min="0" max="100000" step="10" data-bind="vehicle.launchAltitudeM"></label>
+                <label class="field"><span>最大动压 <b>kPa</b></span><input class="input" type="number" min="1" max="500" step="1" data-bind="vehicle.maxQKpa"></label>
+                <label class="field"><span>最大加速度 <b>g</b></span><input class="input" type="number" min="1" max="20" step="0.1" data-bind="vehicle.maxAccelG"></label>
+                <label class="switch-field full-span"><input type="checkbox" data-bind="vehicle.limitLoads"><span>启用最大动压 / 过载自动降推</span></label>
+              </div>
+            </details>
+          </section>
+
+          <section class="wizard-step" data-step="1" aria-labelledby="propHeading">
+            <div class="step-heading">
+              <span class="step-index">STEP 02</span>
+              <h3 id="propHeading">推进剂与混合比</h3>
+              <p>密度决定储箱体积，有效热力参数决定喷管、流量和 Δv。</p>
+            </div>
+            <label class="field full-span">
+              <span>推进剂预设</span>
+              <select class="select" id="propellantSelect" data-bind="propellantKey"></select>
+            </label>
+            <div class="selection-readout" id="propellantReadout" aria-live="polite"></div>
+            <label class="field full-span">
+              <span>氧化剂/燃料混合比覆盖 <b>0 = 预设</b></span>
+              <input class="input" type="number" min="0" max="30" step="0.05" data-bind="engine.mixtureRatioOverride">
+            </label>
+
+            <details class="expert-details" id="customPropDetails">
+              <summary>自定义推进剂参数</summary>
+              <div class="field-grid details-grid">
+                <label class="field"><span>显示名称</span><input class="input" type="text" data-bind="customPropellant.name"></label>
+                <label class="switch-field"><input type="checkbox" data-bind="customPropellant.mono"><span>单组元推进剂</span></label>
+                <label class="field"><span>燃料密度 <b>kg/m³</b></span><input class="input" type="number" min="1" step="1" data-bind="customPropellant.fuelDensity"></label>
+                <label class="field"><span>氧化剂密度 <b>kg/m³</b></span><input class="input" type="number" min="0" step="1" data-bind="customPropellant.oxidizerDensity"></label>
+                <label class="field"><span>燃料温度 <b>K</b></span><input class="input" type="number" min="3" step="1" data-bind="customPropellant.fuelTemperatureK"></label>
+                <label class="field"><span>氧化剂温度 <b>K</b></span><input class="input" type="number" min="3" step="1" data-bind="customPropellant.oxidizerTemperatureK"></label>
+                <label class="field"><span>混合比 O/F</span><input class="input" type="number" min="0" step="0.05" data-bind="customPropellant.mixtureRatio"></label>
+                <label class="field"><span>特征速度 c* <b>m/s</b></span><input class="input" type="number" min="100" step="10" data-bind="customPropellant.cStar"></label>
+                <label class="field"><span>代表比能 <b>MJ/kg</b></span><input class="input" type="number" min="0.01" max="500" step="0.1" data-bind="customPropellant.specificEnergyMjKg"></label>
+                <label class="field"><span>比热比 γ</span><input class="input" type="number" min="1.01" max="1.7" step="0.01" data-bind="customPropellant.gamma"></label>
+                <label class="field"><span>燃烧温度 <b>K</b></span><input class="input" type="number" min="300" max="6000" step="10" data-bind="customPropellant.chamberTemperatureK"></label>
+                <label class="field"><span>海平面比冲 <b>s</b></span><input class="input" type="number" min="10" max="600" step="1" data-bind="customPropellant.ispSea"></label>
+                <label class="field"><span>真空比冲 <b>s</b></span><input class="input" type="number" min="10" max="700" step="1" data-bind="customPropellant.ispVac"></label>
+              </div>
+            </details>
+          </section>
+
+          <section class="wizard-step" data-step="2" aria-labelledby="tankHeading">
+            <div class="step-heading">
+              <span class="step-index">STEP 03</span>
+              <h3 id="tankHeading">储箱、压力与增压</h3>
+              <p>支持独立双箱或共底、单层/载荷共享/COPV/加筋/夹芯/压力稳定气球结构，并分别校核强度、屈曲、界面与运行状态。</p>
+            </div>
+            <div class="field-grid">
+              <label class="field"><span>储箱压力 <b>MPa</b></span><input class="input" type="number" min="0.02" max="50" step="0.01" data-bind="tanks.pressureMpa"></label>
+              <label class="field"><span>气枕比例 <b>%</b></span><input class="input" type="number" min="0.5" max="25" step="0.5" data-bind="tanks.ullagePct"></label>
+              <label class="field"><span>残余比例 <b>%</b></span><input class="input" type="number" min="0" max="20" step="0.5" data-bind="tanks.residualPct"></label>
+              <label class="field"><span>增压方式</span><select class="select" data-bind="tanks.pressurization"><option value="helium">氦气增压</option><option value="autogenous">自生增压</option></select></label>
+              <label class="field"><span>储箱布置</span><select class="select" data-bind="tanks.geometryMode"><option value="separate">两个独立储箱</option><option value="common-bulkhead">共底储箱</option></select></label>
+              <label class="field" data-tank-geometry="common-bulkhead"><span>共底形式</span><select class="select" data-bind="tanks.commonBulkheadType"><option value="single-sheet">单层压差膜 · 热隔离差</option><option value="vacuum">双层独立壳 · 真空间隙</option><option value="honeycomb">双面板 · 粘接蜂窝夹芯</option></select></label>
+              <label class="field"><span>直径模式</span><select class="select" data-bind="tanks.diameterMode"><option value="auto">按长径比自动</option><option value="locked">锁定箭体直径</option></select></label>
+              <label class="field" data-diameter-mode="locked"><span>锁定直径 <b>m</b></span><input class="input" type="number" min="0.2" max="20" step="0.05" data-bind="tanks.diameterM"></label>
+              <label class="field" data-diameter-mode="auto"><span>目标储箱组长径比</span><input class="input" type="number" min="2" max="14" step="0.1" data-bind="tanks.targetAspect"></label>
+              <label class="field"><span>绝热面密度 <b>kg/m²</b></span><input class="input" type="number" min="0" max="20" step="0.1" data-bind="tanks.insulationKgM2"></label>
+            </div>
+            <details class="expert-details common-bulkhead-details" data-tank-geometry="common-bulkhead" open>
+              <summary>共底专用几何、压差包络与面板</summary>
+              <div class="field-grid details-grid">
+                <label class="field" data-common-bulkhead-type="single-sheet,honeycomb"><span>压差设计模式</span><select class="select" data-bind="tanks.commonBulkheadPressureMode"><option value="self-supporting">自承式 · 单侧失压包络</option><option value="pressure-stabilized">压力稳定式 · 依赖压差联锁</option></select></label>
+                <label class="field" data-common-bulkhead-type="single-sheet,honeycomb" data-common-bulkhead-pressure="pressure-stabilized"><span>联锁最大压差 <b>kPa</b></span><input class="input" type="number" min="5" max="2000" step="5" data-bind="tanks.commonBulkheadControlledDeltaKpa"></label>
+                <label class="field"><span>验证 / 证明系数</span><input class="input" type="number" min="1" max="2" step="0.05" data-bind="tanks.commonBulkheadProofFactor"></label>
+                <label class="field"><span>共底拱高 / 箭体半径</span><input class="input" type="number" min="0.18" max="0.85" step="0.01" data-bind="tanks.commonBulkheadHeightRatio"></label>
+                <label class="field" data-common-bulkhead-type="vacuum,honeycomb"><span>真空间隙 / 蜂窝芯厚度 <b>mm</b></span><input class="input" type="number" min="5" max="250" step="1" data-bind="tanks.commonBulkheadCoreThicknessMm"></label>
+                <label class="field"><span>燃料侧 / 单层面板材料</span><select class="select material-select" data-bind="tanks.commonBulkheadFuelMaterialKey"></select></label>
+                <label class="field" data-common-bulkhead-type="vacuum,honeycomb"><span>氧化剂侧面板材料</span><select class="select material-select" data-bind="tanks.commonBulkheadOxidizerMaterialKey"></select></label>
+              </div>
+              <div class="reference-note"><strong>计算边界</strong><span>自承式按任一侧失压包络；压力稳定式只按联锁压差定尺寸，并另外报告单侧失压利用率。双层真空结构的两张面板分别承受各自箱压。</span></div>
+            </details>
+            <label class="field full-span"><span>储箱结构</span><select class="select" data-bind="tanks.structureMode">
+              <option value="single">单层全金属/单一材料（默认）</option>
+              <option value="dual">旧版双层 · 固定 5:95</option>
+              <option value="load-sharing">载荷共享双层 · 动态刚度分配</option>
+              <option value="copv">金属/聚合物内衬 COPV</option>
+              <option value="stiffened">整体加筋等网格/正交网格</option>
+              <option value="sandwich">夹芯壳体</option>
+              <option value="balloon">压力稳定气球储箱</option>
+            </select></label>
+            <label class="field full-span" data-tank-structure="single,stiffened,sandwich,balloon"><span>主壳体材料</span><select class="select material-select" data-bind="tanks.materialKey"></select></label>
+            <label class="field full-span" data-tank-structure="dual,load-sharing,copv"><span>燃料/推进剂内衬材料 · 接触工质</span><select class="select material-select" data-bind="tanks.fuelLinerMaterialKey"></select></label>
+            <label class="field full-span" data-tank-structure="dual,load-sharing,copv" data-bipropellant-tank><span>氧化剂内衬材料 · 接触工质</span><select class="select material-select" data-bind="tanks.oxidizerLinerMaterialKey"></select></label>
+            <label class="field full-span" data-tank-structure="dual,load-sharing,copv"><span>外承力层材料 · COPV 请选择复合缠绕材料</span><select class="select material-select" data-bind="tanks.structuralMaterialKey"></select></label>
+            <label class="field full-span"><span>储箱首选工艺 · 分层结构按材料族自动适配</span><select class="select process-select" data-bind="tanks.processKey"></select></label>
+            <div class="reference-note" data-tank-structure="dual">
+              <strong>旧版兼容：固定载荷分配 5% / 95%</strong>
+              <span>仅用于复现旧方案；新设计建议改用“载荷共享双层”，按温度修正后的 E·t 刚度迭代求解。</span>
+            </div>
+            <details class="expert-details" data-tank-structure="load-sharing,copv" open>
+              <summary>内衬—外层界面与热失配</summary>
+              <div class="field-grid details-grid">
+                <label class="field"><span>界面模式</span><select class="select" data-bind="tanks.interfaceMode"><option value="bonded">完全粘结 / 共同应变</option><option value="slip">接触 / 允许滑移</option><option value="prestressed">预应力 / 自紧</option></select></label>
+                <label class="field"><span>界面约束效率 <b>%</b></span><input class="input" type="number" min="5" max="100" step="1" data-bind="tanks.interfaceEfficiencyPct"></label>
+                <label class="field"><span>界面剪切强度 <b>MPa</b></span><input class="input" type="number" min="0.5" max="250" step="0.5" data-bind="tanks.interfaceShearStrengthMpa"></label>
+                <label class="field"><span>内衬初始压应力 <b>MPa</b></span><input class="input" type="number" min="0" max="500" step="1" data-bind="tanks.linerPrestressMpa"></label>
+              </div>
+            </details>
+            <details class="expert-details" open>
+              <summary>屈曲、缺陷与寿命</summary>
+              <div class="field-grid details-grid">
+                <label class="field"><span>屈曲折减系数 <b>% 理想值</b></span><input class="input" type="number" min="10" max="100" step="1" data-bind="tanks.bucklingKnockdownPct"></label>
+                <label class="field"><span>初始椭圆度/缺陷 <b>% 直径</b></span><input class="input" type="number" min="0" max="5" step="0.05" data-bind="tanks.ovalityPct"></label>
+                <label class="field full-span"><span>设计压力循环次数</span><input class="input" type="number" min="1" max="10000" step="1" data-bind="tanks.designCycles"></label>
+              </div>
+            </details>
+            <details class="expert-details" data-tank-structure="balloon" open>
+              <summary>气球储箱运行与地面保障</summary>
+              <div class="field-grid details-grid">
+                <label class="field"><span>极薄板最小工艺厚度 <b>mm</b></span><input class="input" type="number" min="0.05" max="2" step="0.05" data-bind="tanks.balloonMinGaugeMm"></label>
+                <label class="switch-field"><input type="checkbox" data-bind="tanks.balloonGroundSupport"><span>配置地面张紧/运输支架</span></label>
+              </div>
+            </details>
+            <div class="selection-readout" id="tankMaterialReadout"></div>
+          </section>
+
+          <section class="wizard-step" data-step="3" aria-labelledby="engineHeading">
+            <div class="step-heading">
+              <span class="step-index">STEP 04</span>
+              <h3 id="engineHeading">循环、泵、燃烧室与喷管</h3>
+              <p>循环改变供给方式、压力上限、机械质量、性能与成本。</p>
+            </div>
+            <label class="field full-span"><span>发动机循环</span><select class="select" id="cycleSelect" data-bind="engine.cycleKey"></select></label>
+            <div class="selection-readout" id="cycleReadout"></div>
+            <label class="field full-span"><span>发动机集群架构</span><select class="select" id="clusterArchitectureSelect" data-bind="engine.clusterArchitecture">
+              <option value="independent">独立发动机 · 每台独立泵与附件</option>
+              <option value="shared-powerpack">共用动力包 · 多燃烧室 / 多喷口</option>
+              <option value="ideal-multi-chamber">理想模式 · 单泵多燃烧室多喷口</option>
+            </select></label>
+            <div class="selection-readout" id="clusterReadout"></div>
+            <details class="expert-details" open>
+              <summary>集群、可靠性与重复附件</summary>
+              <div class="field-grid details-grid">
+                <label class="field"><span>每台固定附件质量 <b>kg</b></span><input class="input" type="number" min="0" max="2000" step="1" data-bind="engine.perEngineFixedMassKg"></label>
+                <label class="field"><span>每台附件与验收试车 <b>元</b></span><input class="input" type="number" min="0" max="100000000" step="10000" data-bind="engine.perEngineFixedCostCny"></label>
+                <label class="field"><span>喷口排布净间隙 <b>% 直径</b></span><input class="input" type="number" min="2" max="60" step="1" data-bind="engine.nozzleClearancePct"></label>
+                <label class="field"><span>单台发动机可靠性 <b>%</b></span><input class="input" type="number" min="80" max="99.999" step="0.01" data-bind="engine.singleUnitReliabilityPct"></label>
+                <label class="field"><span>共用动力包可靠性 <b>%</b></span><input class="input" type="number" min="80" max="99.999" step="0.01" data-bind="engine.sharedPowerpackReliabilityPct"></label>
+                <label class="switch-field"><input type="checkbox" data-bind="engine.allowOneEngineOut"><span>允许一台失效后继续任务</span></label>
+              </div>
+            </details>
+            <div class="field-grid">
+              <label class="field"><span>发动机 / 喷管数量</span><input class="input" type="number" min="1" max="40" step="1" data-bind="engine.engineCount"></label>
+              <label class="field"><span>燃烧室压力 <b>MPa</b></span><input class="input" type="number" min="0.1" max="40" step="0.1" data-bind="engine.chamberPressureMpa"></label>
+              <label class="field"><span>节流指令 <b>%</b></span><input class="input" type="number" min="30" max="110" step="1" data-bind="engine.throttlePct"></label>
+              <label class="field"><span>冷却方式</span><select class="select" id="coolingSelect" data-bind="engine.coolingKey"></select></label>
+              <label class="field"><span>泵效率 <b>%</b></span><input class="input" type="number" min="35" max="90" step="1" data-bind="engine.pumpEfficiencyPct"></label>
+              <label class="field"><span>喷注压降 <b>% Pc</b></span><input class="input" type="number" min="5" max="45" step="1" data-bind="engine.injectorDropPct"></label>
+              <label class="field"><span>管路压降 <b>% Pc</b></span><input class="input" type="number" min="1" max="30" step="1" data-bind="engine.lineDropPct"></label>
+            </div>
+            <label class="switch-field full-span"><input type="checkbox" data-bind="engine.autoExpansion"><span>按环境自动选择喷管膨胀比；关闭后可手动编辑</span></label>
+            <label class="field full-span" data-expansion-manual><span>手动膨胀比 Ae/At</span><input class="input" type="number" min="3" max="220" step="1" data-bind="engine.expansionRatio"></label>
+
+            <details class="expert-details" data-electric-battery hidden open>
+              <summary>电泵电池、电机与控制器</summary>
+              <div class="field-grid details-grid">
+                <label class="field full-span"><span>电池类型</span><select class="select" id="batterySelect" data-bind="engine.batteryKey"></select></label>
+                <label class="field"><span>能量余量 <b>%</b></span><input class="input" type="number" min="0" max="100" step="1" data-bind="engine.batteryReservePct"></label>
+                <label class="field"><span>电池至泵轴效率 <b>%</b></span><input class="input" type="number" min="50" max="99" step="1" data-bind="engine.batteryEfficiencyPct"></label>
+                <label class="field" data-battery-custom><span>自定义比能量 <b>Wh/kg</b></span><input class="input" type="number" min="20" max="2000" step="10" data-bind="engine.customBatteryEnergyDensityWhKg"></label>
+                <label class="field" data-battery-custom><span>自定义比功率 <b>W/kg</b></span><input class="input" type="number" min="50" max="20000" step="50" data-bind="engine.customBatteryPowerDensityWKg"></label>
+                <label class="field" data-battery-custom><span>自定义封装余量 <b>%</b></span><input class="input" type="number" min="0" max="100" step="1" data-bind="engine.customBatteryPackOverheadPct"></label>
+                <label class="field" data-battery-custom><span>自定义参考价 <b>元/kg</b></span><input class="input" type="number" min="0" max="100000" step="50" data-bind="engine.customBatteryCostCnyKg"></label>
+              </div>
+              <div class="selection-readout" id="batteryReadout"></div>
+            </details>
+
+            <details class="expert-details" open>
+              <summary>部件材料与工艺</summary>
+              <div class="field-grid details-grid">
+                <label class="field"><span>泵/阀材料</span><select class="select material-select" data-bind="engine.pumpMaterialKey"></select></label>
+                <label class="field"><span>泵/阀工艺</span><select class="select process-select" data-bind="engine.pumpProcessKey"></select></label>
+                <label class="field"><span>燃烧室材料</span><select class="select material-select" data-bind="engine.chamberMaterialKey"></select></label>
+                <label class="field"><span>喷管材料</span><select class="select material-select" data-bind="engine.nozzleMaterialKey"></select></label>
+                <label class="field full-span"><span>热端工艺</span><select class="select process-select" data-bind="engine.hotProcessKey"></select></label>
+              </div>
+            </details>
+          </section>
+
+          <section class="wizard-step" data-step="4" aria-labelledby="costHeading">
+            <div class="step-heading">
+              <span class="step-index">STEP 05</span>
+              <h3 id="costHeading">箭体、航电与成本修正</h3>
+              <p>成本只用于方案比较：材料、稀缺度、损耗、工艺与系统复杂度共同修正。</p>
+            </div>
+            <div class="field-grid">
+              <label class="field"><span>箭体材料</span><select class="select material-select" data-bind="airframe.materialKey"></select></label>
+              <label class="field"><span>箭体工艺</span><select class="select process-select" data-bind="airframe.processKey"></select></label>
+              <div class="field full-span field-with-action"><label for="structuralFactorInput">经验结构系数 <b>推荐 0.055</b></label><span class="input-action"><input class="input" id="structuralFactorInput" type="number" min="0.01" max="0.4" step="0.005" data-bind="vehicle.structuralFactor"><button class="button button-ghost button-small" id="resetStructuralFactorBtn" type="button">恢复默认</button></span></div>
+              <label class="field"><span>航电质量 <b>kg</b></span><input class="input" type="number" min="0" max="100000" step="1" data-bind="vehicle.avionicsKg"></label>
+              <label class="field full-span"><span>地面试车稳态时长 <b>s</b></span><input class="input" type="number" min="3" max="180" step="1" data-bind="test.durationS"></label>
+            </div>
+            <div class="reference-note">
+              <strong>结构经验基准</strong>
+              <span>默认 0.055，用于概念级箭体与整流罩质量下限；材料、工艺、外形面积和发动机集群修正仍会在模型中另行叠加。</span>
+            </div>
+            <details class="expert-details" id="priceDebugDetails">
+              <summary>价格调试模式 · 默认关闭</summary>
+              <div class="debug-reset-row">
+                <span>价格总体修正默认 1.00×；参考单价按当前推进剂与材料恢复。</span>
+                <button class="button button-ghost button-small" id="resetPriceTuningBtn" type="button">恢复价格默认</button>
+              </div>
+              <div class="field-grid details-grid">
+                <label class="field"><span>装配系数 <b>默认 1.18</b></span><input class="input" type="number" min="1" max="5" step="0.01" data-bind="cost.assemblyFactor"></label>
+                <label class="field"><span>价格总体修正 <b>默认 1.00</b></span><input class="input" type="number" min="0.1" max="20" step="0.05" data-bind="cost.priceScale"></label>
+                <label class="field"><span>燃料/单组元推进剂 <b>元/kg</b></span><input class="input" type="number" min="0" max="100000" step="0.1" data-bind="cost.fuelPriceCnyKg"></label>
+                <label class="field" data-bipropellant-cost><span>氧化剂 <b>元/kg</b></span><input class="input" type="number" min="0" max="100000" step="0.1" data-bind="cost.oxidizerPriceCnyKg"></label>
+                <label class="field"><span>储箱材料 <b>元/kg</b></span><input class="input" type="number" min="0" step="1" data-bind="cost.tankPriceCnyKg"></label>
+                <label class="field"><span>泵/阀材料 <b>元/kg</b></span><input class="input" type="number" min="0" step="1" data-bind="cost.pumpPriceCnyKg"></label>
+                <label class="field"><span>热端材料 <b>元/kg</b></span><input class="input" type="number" min="0" step="1" data-bind="cost.hotPriceCnyKg"></label>
+                <label class="field"><span>箭体材料 <b>元/kg</b></span><input class="input" type="number" min="0" step="1" data-bind="cost.airframePriceCnyKg"></label>
+              </div>
+            </details>
+            <div class="reference-note">
+              <strong>相对基准</strong>
+              <span>304L 不锈钢室温屈服强度 = 1.00；成本基准为 304L 板材成形＋焊接。</span>
+            </div>
+          </section>
+
+          <section class="wizard-addon-step" data-design-section-page="boosters" aria-labelledby="boosterHeading">
+            <div class="step-heading">
+              <span class="step-index">PARALLEL BOOSTER</span>
+              <h3 id="boosterHeading">并联助推器</h3>
+              <p>Add Moar Booster：助推器与芯级同时工作，燃尽后分离；可复制芯级参数，也可作为独立推进系统设计。</p>
+            </div>
+            <fieldset class="parallel-booster-controls">
+              <legend>助推器独立参数</legend>
+              <div class="field-grid">
+                <label class="field"><span>助推器数量 <b>枚</b></span><input class="input" type="number" min="1" max="8" step="1" data-bind="boosters.count"></label>
+                <label class="field"><span>单枚推进剂定量</span><select class="select" data-bind="boosters.sizingMode"><option value="core-ratio">按芯级可用推进剂比例</option><option value="fixed">固定单枚推进剂质量</option></select></label>
+                <label class="field" data-booster-sizing="core-ratio"><span>单枚 / 芯级推进剂 <b>%</b></span><input class="input" type="number" min="1" max="300" step="1" data-bind="boosters.propellantMassRatioPct"></label>
+                <label class="field" data-booster-sizing="fixed"><span>单枚可用推进剂 <b>kg</b></span><input class="input" type="number" min="1" max="5000000" step="100" data-bind="boosters.propellantMassKg"></label>
+                <label class="field"><span>推进剂来源</span><select class="select" data-bind="boosters.propellantMode"><option value="copy-core">复制芯级推进剂</option><option value="custom">独立推进剂预设</option></select></label>
+                <label class="field" data-booster-propellant="custom"><span>助推器推进剂</span><select class="select" id="boosterPropellantSelect" data-bind="boosters.propellantKey"></select></label>
+                <label class="field"><span>直径方案</span><select class="select" data-bind="boosters.diameterMode"><option value="copy-core">复制芯级直径</option><option value="custom">独立助推器直径</option></select></label>
+                <label class="field" data-booster-diameter="custom"><span>单枚助推器直径 <b>m</b></span><input class="input" type="number" min="0.2" max="20" step="0.05" data-bind="boosters.diameterM"></label>
+                <label class="field"><span>发动机方案</span><select class="select" data-bind="boosters.engineMode"><option value="copy-core">复制芯级发动机组</option><option value="custom">独立发动机方案</option></select></label>
+                <label class="switch-field" data-booster-delta-v><input type="checkbox" data-bind="boosters.includeInDeltaVSizing"><span>计入目标 Δv 反算约束</span></label>
+              </div>
+              <div class="reference-note" data-booster-engine="copy-core"><strong>当前跟随芯一级发动机</strong><span>发动机与喷管数量、循环、室压和喷管几何由芯一级控制；选择“独立发动机方案”后可在下方逐项编辑。</span></div>
+              <details class="expert-details" data-booster-engine="custom" open>
+                <summary>独立助推器发动机</summary>
+                <div class="field-grid details-grid">
+                  <label class="field full-span"><span>助推器发动机循环</span><select class="select" id="boosterCycleSelect" data-bind="boosters.cycleKey"></select></label>
+                  <label class="field"><span>每枚发动机 / 喷管数量</span><input class="input" type="number" min="1" max="40" step="1" data-bind="boosters.engineCount"></label>
+                  <label class="field"><span>每枚总推力 <b>kN</b></span><input class="input" type="number" min="0.1" max="100000" step="10" data-bind="boosters.targetThrustKn"></label>
+                  <label class="field"><span>燃烧室压力 <b>MPa</b></span><input class="input" type="number" min="0.1" max="40" step="0.1" data-bind="boosters.chamberPressureMpa"></label>
+                  <label class="field"><span>喷管膨胀比</span><input class="input" type="number" min="3" max="220" step="1" data-bind="boosters.expansionRatio"></label>
+                </div>
+              </details>
+              <details class="expert-details">
+                <summary>连接、分离、气动与可靠性</summary>
+                <div class="field-grid details-grid">
+                  <label class="field"><span>连接结构质量系数 <b>% 助推器干重</b></span><input class="input" type="number" min="0.2" max="20" step="0.1" data-bind="boosters.attachmentMassPct"></label>
+                  <label class="field"><span>燃尽后分离延迟 <b>s</b></span><input class="input" type="number" min="0" max="20" step="0.1" data-bind="boosters.separationDelayS"></label>
+                  <label class="field"><span>单枚分离可靠性 <b>%</b></span><input class="input" type="number" min="80" max="99.999" step="0.01" data-bind="boosters.separationReliabilityPct"></label>
+                  <label class="field"><span>并联气动面积修正</span><input class="input" type="number" min="1" max="2.5" step="0.01" data-bind="boosters.dragFactor"></label>
+                </div>
+              </details>
+              <div class="selection-readout" id="boosterReadout" aria-live="polite"></div>
+            </fieldset>
+          </section>
+
+          <section class="wizard-addon-step serial-stage-editor" data-design-section-page="serial" aria-labelledby="serialStageHeading">
+            <div class="step-heading serial-stage-heading">
+              <div>
+                <span class="step-index" id="serialStageKicker">SERIAL STAGE 02</span>
+                <h3 id="serialStageHeading">第二级设计</h3>
+                <p id="serialStageCarryNote">本级携带其上方全部级段与最终载荷，参数独立参与逐级质量和 Δv 计算。</p>
+              </div>
+              <button class="button button-ghost button-small" id="deleteSerialStageBtn" type="button" hidden>删除本级</button>
+            </div>
+
+            <nav class="stage-step-nav" aria-label="当前级段设计步骤">
+              <button type="button" class="stage-step-button is-active" data-stage-step-button="0"><span>01</span>级段任务</button>
+              <button type="button" class="stage-step-button" data-stage-step-button="1"><span>02</span>推进剂</button>
+              <button type="button" class="stage-step-button" data-stage-step-button="2"><span>03</span>储箱</button>
+              <button type="button" class="stage-step-button" data-stage-step-button="3"><span>04</span>发动机</button>
+              <button type="button" class="stage-step-button" data-stage-step-button="4"><span>05</span>分离模式</button>
+            </nav>
+
+            <section class="serial-stage-step is-active" data-stage-step="0">
+              <label class="switch-field full-span"><input type="checkbox" data-stage-bind="enabled"><span><strong>本级参与全箭计算</strong><small>关闭后保留参数，但质量、成本、可靠性与逐级 Δv 会跳过本级。</small></span></label>
+              <div class="field-grid">
+                <label class="field full-span"><span>级段名称</span><input class="input" type="text" maxlength="30" data-stage-bind="name"></label>
+                <label class="field"><span>本级尺寸驱动</span><select class="select" data-stage-bind="sizingMode"><option value="mass">推进剂质量</option><option value="delta-v">本级目标 Δv</option><option value="thrust-time">推力与燃时</option></select></label>
+                <label class="field" data-stage-sizing="mass"><span>可用推进剂质量 <b>kg</b></span><input class="input" type="number" min="1" max="10000000" step="100" data-stage-bind="propellantMassKg"></label>
+                <label class="field" data-stage-sizing="delta-v"><span>本级目标理想 Δv <b>m/s</b></span><input class="input" type="number" min="50" max="15000" step="50" data-stage-bind="targetDeltaV"></label>
+                <label class="field" data-stage-sizing="thrust-time"><span>目标燃时 <b>s</b></span><input class="input" type="number" min="0.5" max="7200" step="1" data-stage-bind="burnTimeS"></label>
+                <label class="field"><span>目标真空推力 <b>kN</b></span><input class="input" type="number" min="0.1" max="100000" step="10" data-stage-bind="targetThrustKn"></label>
+                <label class="field"><span>经验结构系数</span><input class="input" type="number" min="0.01" max="0.4" step="0.005" data-stage-bind="structuralFactor"></label>
+                <label class="field"><span>本级航电质量 <b>kg</b></span><input class="input" type="number" min="0" max="100000" step="1" data-stage-bind="avionicsKg"></label>
+              </div>
+              <div class="selection-readout" id="serialStageReadout" aria-live="polite"></div>
+            </section>
+
+            <section class="serial-stage-step" data-stage-step="1">
+              <div class="stage-copy-toolbar">
+                <span id="stagePropellantCopySource">来源：前一级</span>
+                <button class="button button-ghost button-small" type="button" data-stage-copy-previous="propellant">粘贴前一级</button>
+                <button class="button button-ghost button-small" type="button" data-stage-copy="propellant">复制本级</button>
+                <button class="button button-ghost button-small" type="button" data-stage-paste="propellant">粘贴参数</button>
+              </div>
+              <div class="field-grid">
+                <label class="field full-span"><span>本级推进剂预设</span><select class="select" id="stagePropellantSelect" data-stage-bind="propellantKey"></select></label>
+                <label class="field full-span"><span>氧化剂/燃料混合比覆盖 <b>0 = 预设</b></span><input class="input" type="number" min="0" max="30" step="0.05" data-stage-bind="engine.mixtureRatioOverride"></label>
+              </div>
+              <div class="selection-readout" id="serialStagePropellantReadout" aria-live="polite"></div>
+            </section>
+
+            <section class="serial-stage-step" data-stage-step="2">
+              <div class="stage-copy-toolbar">
+                <span id="stageTankCopySource">来源：前一级</span>
+                <button class="button button-ghost button-small" type="button" data-stage-copy-previous="tanks">粘贴前一级</button>
+                <button class="button button-ghost button-small" type="button" data-stage-copy="tanks">复制本级</button>
+                <button class="button button-ghost button-small" type="button" data-stage-paste="tanks">粘贴参数</button>
+              </div>
+              <div class="field-grid">
+                <label class="field"><span>储箱压力 <b>MPa</b></span><input class="input" type="number" min="0.02" max="50" step="0.01" data-stage-bind="tanks.pressureMpa"></label>
+                <label class="field"><span>气枕比例 <b>%</b></span><input class="input" type="number" min="0.5" max="25" step="0.5" data-stage-bind="tanks.ullagePct"></label>
+                <label class="field"><span>残余比例 <b>%</b></span><input class="input" type="number" min="0" max="20" step="0.5" data-stage-bind="tanks.residualPct"></label>
+                <label class="field"><span>增压方式</span><select class="select" data-stage-bind="tanks.pressurization"><option value="helium">氦气增压</option><option value="autogenous">自生增压</option></select></label>
+                <label class="field"><span>储箱布置</span><select class="select" data-stage-bind="tanks.geometryMode"><option value="separate">两个独立储箱</option><option value="common-bulkhead">共底储箱</option></select></label>
+                <label class="field"><span>储箱结构</span><select class="select" data-stage-bind="tanks.structureMode"><option value="single">单层全金属</option><option value="load-sharing">动态载荷共享双层</option><option value="copv">金属内衬 COPV</option><option value="stiffened">整体加筋</option><option value="sandwich">夹芯壳体</option><option value="balloon">压力稳定气球储箱</option></select></label>
+                <label class="field"><span>直径模式</span><select class="select" data-stage-bind="tanks.diameterMode"><option value="auto">按长径比自动</option><option value="locked">锁定本级直径</option></select></label>
+                <label class="field" data-stage-diameter="locked"><span>本级直径 <b>m</b></span><input class="input" type="number" min="0.2" max="20" step="0.05" data-stage-bind="tanks.diameterM"></label>
+                <label class="field" data-stage-diameter="auto"><span>目标储箱组长径比</span><input class="input" type="number" min="2" max="14" step="0.1" data-stage-bind="tanks.targetAspect"></label>
+                <label class="field"><span>绝热面密度 <b>kg/m²</b></span><input class="input" type="number" min="0" max="20" step="0.1" data-stage-bind="tanks.insulationKgM2"></label>
+                <label class="field full-span"><span>主储箱材料</span><select class="select material-select" data-stage-bind="tanks.materialKey"></select></label>
+                <label class="field full-span"><span>储箱工艺</span><select class="select process-select" data-stage-bind="tanks.processKey"></select></label>
+              </div>
+              <details class="expert-details" data-stage-layered-tank>
+                <summary>分层储箱材料微调</summary>
+                <div class="field-grid details-grid">
+                  <label class="field"><span>燃料/推进剂内衬</span><select class="select material-select" data-stage-bind="tanks.fuelLinerMaterialKey"></select></label>
+                  <label class="field"><span>氧化剂内衬</span><select class="select material-select" data-stage-bind="tanks.oxidizerLinerMaterialKey"></select></label>
+                  <label class="field full-span"><span>外承力层</span><select class="select material-select" data-stage-bind="tanks.structuralMaterialKey"></select></label>
+                </div>
+              </details>
+            </section>
+
+            <section class="serial-stage-step" data-stage-step="3">
+              <div class="stage-copy-toolbar">
+                <span id="stageEngineCopySource">来源：前一级</span>
+                <button class="button button-ghost button-small" type="button" data-stage-copy-previous="engine">粘贴前一级</button>
+                <button class="button button-ghost button-small" type="button" data-stage-copy="engine">复制本级</button>
+                <button class="button button-ghost button-small" type="button" data-stage-paste="engine">粘贴参数</button>
+              </div>
+              <div class="field-grid">
+                <label class="field full-span"><span>发动机循环</span><select class="select" id="stageCycleSelect" data-stage-bind="engine.cycleKey"></select></label>
+                <label class="field"><span>发动机 / 喷管数量</span><input class="input" type="number" min="1" max="40" step="1" data-stage-bind="engine.engineCount"></label>
+                <label class="field"><span>集群架构</span><select class="select" data-stage-bind="engine.clusterArchitecture"><option value="independent">独立发动机</option><option value="shared-powerpack">共用动力包</option><option value="ideal-multi-chamber">理想单泵多室</option></select></label>
+                <label class="field"><span>燃烧室压力 <b>MPa</b></span><input class="input" type="number" min="0.1" max="40" step="0.1" data-stage-bind="engine.chamberPressureMpa"></label>
+                <label class="switch-field"><input type="checkbox" data-stage-bind="engine.autoExpansion"><span>按真空环境自动膨胀比</span></label>
+                <label class="field" data-stage-manual-expansion><span>喷管膨胀比</span><input class="input" type="number" min="3" max="220" step="1" data-stage-bind="engine.expansionRatio"></label>
+                <label class="field"><span>冷却方式</span><select class="select" id="stageCoolingSelect" data-stage-bind="engine.coolingKey"></select></label>
+                <label class="field"><span>泵效率 <b>%</b></span><input class="input" type="number" min="35" max="90" step="1" data-stage-bind="engine.pumpEfficiencyPct"></label>
+                <label class="field"><span>管路压降 <b>% Pc</b></span><input class="input" type="number" min="1" max="30" step="1" data-stage-bind="engine.lineDropPct"></label>
+                <label class="field"><span>喷注压降 <b>% Pc</b></span><input class="input" type="number" min="5" max="45" step="1" data-stage-bind="engine.injectorDropPct"></label>
+                <label class="field"><span>泵/阀材料</span><select class="select material-select" data-stage-bind="engine.pumpMaterialKey"></select></label>
+                <label class="field"><span>泵/阀工艺</span><select class="select process-select" data-stage-bind="engine.pumpProcessKey"></select></label>
+                <label class="field"><span>燃烧室材料</span><select class="select material-select" data-stage-bind="engine.chamberMaterialKey"></select></label>
+                <label class="field"><span>喷管材料</span><select class="select material-select" data-stage-bind="engine.nozzleMaterialKey"></select></label>
+                <label class="field full-span"><span>热端工艺</span><select class="select process-select" data-stage-bind="engine.hotProcessKey"></select></label>
+              </div>
+            </section>
+
+            <section class="serial-stage-step" data-stage-step="4">
+              <div class="field-grid">
+                <label class="field full-span"><span>与前一级的点火/分离方式</span><select class="select" id="stageSeparationModeSelect" data-stage-bind="separation.mode"><option value="cold">冷分离 · 先分离后点火</option><option value="mechanical">机械式 · 弹簧/推杆</option><option value="ullage-solid">小固推 · 固定沉底/反推器</option><option value="hot">热分离 · 上一级提前点火</option></select></label>
+                <label class="field"><span>分离后点火延迟 <b>s</b></span><input class="input" type="number" min="0" max="30" step="0.1" data-stage-bind="separation.ignitionDelayS"></label>
+                <label class="field"><span>设计可靠性上限 <b>%</b></span><input class="input" type="number" min="80" max="99.999" step="0.01" data-stage-bind="separation.reliabilityPct"></label>
+              </div>
+              <div class="selection-readout separation-readout" id="serialStageSeparationReadout" aria-live="polite"></div>
+            </section>
+          </section>
+
+          <div class="wizard-actions">
+            <button class="button button-ghost" id="prevStepBtn" type="button">上一步</button>
+            <button class="button button-primary" id="nextStepBtn" type="button">下一步</button>
+          </div>
+        </form>
+      </aside>
+
+      <main class="main-stage">
+        <section class="summary-grid" aria-label="关键结果">
+          <article class="summary-card">
+            <span>理想 Δv</span>
+            <strong id="summaryDv">—</strong>
+            <small id="summaryDvNote">未扣除飞行损失</small>
+          </article>
+          <article class="summary-card summary-cost-card">
+            <span>总成本</span>
+            <strong id="summaryCost">—</strong>
+            <small id="summaryCostNote">制造 + 推进剂</small>
+            <div class="summary-cost-shares" id="summaryCostShares" aria-label="成本占比"></div>
+          </article>
+          <article class="summary-card summary-mass-card">
+            <span>起飞质量</span>
+            <strong id="summaryMass">—</strong>
+            <small id="summaryMassNote">推进剂 + 干重 + 载荷</small>
+            <div class="summary-mass-shares" id="summaryMassShares" aria-label="起飞质量分配占比"></div>
+            <div class="summary-dry-heading">
+              <span>干重分配 · 推进剂排除</span>
+              <label class="summary-dry-toggle"><input id="includePayloadInDryBreakdown" type="checkbox">载荷计入</label>
+            </div>
+            <div class="summary-dry-mass-shares" id="summaryDryMassShares" aria-label="不含推进剂的干重分配占比"></div>
+          </article>
+          <article class="summary-card">
+            <span>总推力 / 推重比</span>
+            <strong id="summaryThrust">—</strong>
+            <small id="summaryThrustNote">—</small>
+            <small class="summary-live" id="summaryAccelNote">当前加速度 0.00 g · 最大加速度 —</small>
+          </article>
+        </section>
+
+        <section class="visual-section" aria-labelledby="visualHeading">
+          <div class="section-toolbar">
+            <div>
+              <span class="section-kicker">VEHICLE PREVIEW</span>
+              <h2 id="visualHeading">级段构型</h2>
+            </div>
+            <div class="view-controls">
+              <div class="segmented" role="group" aria-label="火箭视图模式">
+                <button type="button" class="segment" data-view="cartoon" aria-pressed="false">固定 Q 版</button>
+                <button type="button" class="segment is-active" data-view="scale" aria-pressed="true">真实比例</button>
+              </div>
+              <label class="preview-atmosphere-control" for="previewAtmosphereToggle">
+                <input id="previewAtmosphereToggle" type="checkbox" data-bind="test.previewAtmosphere">
+                <span>待机模拟大气</span>
+              </label>
+              <label class="zoom-control" data-scale-control>
+                <span>缩放</span>
+                <input id="scaleZoom" type="range" min="70" max="180" value="100" step="5">
+                <output id="scaleZoomOut">100%</output>
+              </label>
+            </div>
+          </div>
+          <div class="simulation-toolbar" aria-label="动态模拟控制">
+            <div class="simulation-actions">
+              <button type="button" class="button button-primary" id="staticRunBtn">点火试车</button>
+              <button type="button" class="button" id="flightRunBtn">直飞演示</button>
+              <button type="button" class="button button-ghost" id="animationPauseBtn" disabled>暂停</button>
+              <button type="button" class="button button-ghost" id="animationResetBtn" disabled>复位</button>
+            </div>
+            <div class="playback-settings">
+              <label>演示速度
+                <select class="select select-compact" id="playbackSpeed">
+                  <option value="auto">自动</option>
+                  <option value="0.5">0.5×</option>
+                  <option value="1">1×</option>
+                  <option value="2">2×</option>
+                  <option value="5">5×</option>
+                  <option value="10">10×</option>
+                  <option value="20">20×</option>
+                </select>
+              </label>
+              <label>环境模拟
+                <select class="select select-compact" id="environmentScenarioSelect" aria-label="选择天体环境"></select>
+              </label>
+              <button type="button" class="button button-ghost" id="soundToggleBtn" aria-pressed="true">声音：开</button>
+            </div>
+          </div>
+          <details class="launch-sequence" id="launchSequenceSettings" open>
+            <summary>
+              <span>发射时序与沉浸模式</span>
+              <small id="launchSequenceStatus">T-10 · 语音倒计时 · 发射场摇臂</small>
+            </summary>
+            <div class="launch-sequence-grid">
+              <label class="launch-option" for="countdownEnabled">
+                <input id="countdownEnabled" type="checkbox" checked>
+                <span><strong>启用发射倒计时</strong><small>直飞演示从预计 T-时刻开始</small></span>
+              </label>
+              <label class="launch-option" for="immersiveLaunch">
+                <input id="immersiveLaunch" type="checkbox" checked>
+                <span><strong>沉浸发射</strong><small>倒计时至 T+5 秒锁定 1× 并语音报数</small></span>
+              </label>
+              <label class="launch-option" for="autoPauseAfterBurnout">
+                <input id="autoPauseAfterBurnout" type="checkbox">
+                <span><strong>熄火后 1 秒自动暂停</strong><small>仅暂停直飞画面；继续后仍可观察惯性滑行</small></span>
+              </label>
+              <label class="launch-field" for="countdownSeconds">
+                <span>预计倒计时</span>
+                <select class="select select-compact" id="countdownSeconds">
+                  <option value="10">T-10 s</option>
+                  <option value="11">T-11 s</option>
+                  <option value="12">T-12 s</option>
+                  <option value="13">T-13 s</option>
+                </select>
+              </label>
+              <label class="launch-field" for="launchModeSelect">
+                <span>起飞约束</span>
+                <select class="select select-compact" id="launchModeSelect">
+                  <option value="pad">发射场 / 摇臂固定</option>
+                  <option value="field">野地 / 无发射架</option>
+                </select>
+              </label>
+              <label class="launch-field" for="engineStartupSeconds">
+                <span>推力爬升时间</span>
+                <span class="launch-number"><input class="input" id="engineStartupSeconds" type="number" min="0.5" max="10" step="0.1" value="3"><b>s</b></span>
+              </label>
+            </div>
+          </details>
+          <details class="sound-mixer" id="soundMixer">
+            <summary>
+              <span>声音混音与自动调节</span>
+              <small id="soundMixStatus">待机 · 总音量 65%</small>
+            </summary>
+            <div class="sound-mixer-grid">
+              <label class="sound-range" for="soundMasterVolume">
+                <span>总音量 <output id="soundMasterVolumeOut" for="soundMasterVolume">65%</output></span>
+                <input id="soundMasterVolume" type="range" min="0" max="100" value="65" step="1">
+              </label>
+              <label class="sound-range" for="soundIgnitionVolume">
+                <span>点火爆鸣 <output id="soundIgnitionVolumeOut" for="soundIgnitionVolume">85%</output></span>
+                <input id="soundIgnitionVolume" type="range" min="0" max="100" value="85" step="1">
+              </label>
+              <label class="sound-range" for="soundRumbleVolume">
+                <span>低频轰鸣 <output id="soundRumbleVolumeOut" for="soundRumbleVolume">80%</output></span>
+                <input id="soundRumbleVolume" type="range" min="0" max="100" value="80" step="1">
+              </label>
+              <label class="sound-range" for="soundJetVolume">
+                <span>喷流 / 涡轮 <output id="soundJetVolumeOut" for="soundJetVolume">65%</output></span>
+                <input id="soundJetVolume" type="range" min="0" max="100" value="65" step="1">
+              </label>
+              <label class="sound-option" for="soundAutoFade">
+                <input id="soundAutoFade" type="checkbox" checked>
+                <span><strong>试听保护</strong><small>工作 8 秒后，用 4 秒线性降至 40%</small></span>
+              </label>
+              <label class="sound-option" for="soundVacuumAttenuation">
+                <input id="soundVacuumAttenuation" type="checkbox" checked>
+                <span><strong>真空代入感</strong><small>随环境压力降低，音量逐渐接近 10%</small></span>
+              </label>
+            </div>
+          </details>
+          <div class="dynamic-telemetry" id="dynamicTelemetry" aria-live="polite">
+            <div class="telemetry-heading">
+              <strong id="animationPhase">待机</strong>
+              <span id="animationEnvironment">地球 · 1.00 g</span>
+              <span id="animationLaunchState">摇臂待命 · T/W 0.00</span>
+              <span id="animationClock">T+0.0 s</span>
+              <span id="animationAltitude">高度 0 m</span>
+              <span id="animationMotion">v 0 m/s · a 0.00 g</span>
+              <span id="animationDynamicPressure">Q 0.00 kPa</span>
+              <span id="animationThrottle">节流 0.0% · 关机</span>
+            </div>
+            <div class="propellant-telemetry">
+              <div class="propellant-row">
+                <span id="fuelRemainLabel">燃料</span>
+                <div class="propellant-track" aria-hidden="true"><i id="fuelRemainBar"></i></div>
+                <strong id="fuelRemainValue">100%</strong>
+              </div>
+              <div class="propellant-row" id="oxidizerRemainRow">
+                <span>氧化剂</span>
+                <div class="propellant-track oxidizer" aria-hidden="true"><i id="oxidizerRemainBar"></i></div>
+                <strong id="oxidizerRemainValue">100%</strong>
+              </div>
+              <div class="propellant-row booster-propellant-row" id="boosterRemainRow" hidden>
+                <span>助推器</span>
+                <div class="propellant-track booster" aria-hidden="true"><i id="boosterRemainBar"></i></div>
+                <strong id="boosterRemainValue">100%</strong>
+              </div>
+            </div>
+          </div>
+          <div class="engine-live-strip flight-live-strip" id="flightLiveStrip" aria-label="持久飞行遥测">
+            <div class="engine-marker">
+              <span>当前高度 h</span>
+              <strong id="flightLiveAltitude">0 m</strong>
+            </div>
+            <div class="engine-marker">
+              <span>前进速度 v</span>
+              <strong id="flightLiveVelocity">0 m/s</strong>
+            </div>
+            <div class="engine-marker">
+              <span>净加速度 a</span>
+              <strong id="flightLiveAcceleration">0.00 g</strong>
+              <small id="flightLiveAccelerationDetail">0.00 m/s²</small>
+            </div>
+            <div class="engine-marker">
+              <span>当前动压 Q</span>
+              <strong id="flightLiveDynamicPressure">0.00 kPa</strong>
+            </div>
+            <div class="engine-marker">
+              <span>时间加速倍率</span>
+              <strong id="flightLiveTimeScale">自动</strong>
+            </div>
+          </div>
+          <div class="engine-live-strip" id="engineLiveStrip" aria-label="发动机实时参数标记">
+            <div class="engine-marker">
+              <span>环境压力 Pₐ</span>
+              <strong id="engineAmbientPressure">101.3 kPa</strong>
+            </div>
+            <div class="engine-marker">
+              <span>出口压力 Pₑ</span>
+              <strong id="engineExitPressure">0 Pa</strong>
+            </div>
+            <div class="engine-marker">
+              <span>当前总推力 F</span>
+              <strong id="engineCurrentThrust">0 kN</strong>
+            </div>
+            <div class="engine-marker engine-marker-flow">
+              <span>推进剂消耗 ṁ</span>
+              <strong id="engineMassFlow">0 kg/s</strong>
+              <small id="engineMassFlowDetail">燃料 0 · 氧化剂 0 kg/s</small>
+            </div>
+            <div class="engine-marker">
+              <span>有效排气速度 vₑ</span>
+              <strong id="engineExhaustVelocity">0 m/s</strong>
+            </div>
+          </div>
+          <div class="rocket-stage" id="rocketStage">
+            <svg id="rocketSvg" class="rocket-svg" viewBox="0 0 900 430" role="img" aria-labelledby="rocketSvgTitle rocketSvgDesc">
+              <title id="rocketSvgTitle">火箭级段示意图</title>
+              <desc id="rocketSvgDesc">根据推进剂体积、储箱直径和发动机喷口尺寸动态绘制。</desc>
+            </svg>
+          </div>
+          <div class="visual-caption" id="visualCaption">—</div>
+        </section>
+
+        <section class="results-section" aria-labelledby="resultsHeading">
+          <div class="result-tabs" role="tablist" aria-label="结果分类">
+            <button type="button" role="tab" class="result-tab is-active" data-result-tab="overview" aria-selected="true">质量与性能</button>
+            <button type="button" role="tab" class="result-tab" data-result-tab="flight" aria-selected="false">一维直飞</button>
+            <button type="button" role="tab" class="result-tab" data-result-tab="energy" aria-selected="false">能量统计</button>
+            <button type="button" role="tab" class="result-tab" data-result-tab="static" aria-selected="false">发动机试车</button>
+            <button type="button" role="tab" class="result-tab" data-result-tab="cost" aria-selected="false">成本 / BOM</button>
+            <button type="button" role="tab" class="result-tab" data-result-tab="formula" aria-selected="false">公式检查器</button>
+          </div>
+
+          <div class="result-panel is-active" data-result-panel="overview" role="tabpanel">
+            <div class="data-columns">
+              <section>
+                <h3>质量预算</h3>
+                <div id="massTable"></div>
+              </section>
+              <section>
+                <h3>推进与尺寸</h3>
+                <div id="performanceTable"></div>
+              </section>
+              <section>
+                <h3>泵与热管理</h3>
+                <div id="pumpTable"></div>
+              </section>
+            </div>
+          </div>
+
+          <div class="result-panel" data-result-panel="flight" role="tabpanel">
+            <div class="metric-strip" id="flightMetrics"></div>
+            <div class="chart-wrap">
+              <svg id="flightChart" class="chart" viewBox="0 0 880 330" role="img" aria-label="一维直飞高度、速度和节流时序图"></svg>
+            </div>
+          </div>
+
+          <div class="result-panel" data-result-panel="energy" role="tabpanel">
+            <div class="energy-toolbar">
+              <span id="energyCutoffStatus">飞行器能量账本 · 四条曲线共用同一纵轴</span>
+              <div class="energy-controls">
+                <label for="energyCutoffMode">统计截止
+                  <select class="select select-compact" id="energyCutoffMode">
+                    <option value="apogee">直到速度归零</option>
+                    <option value="post-burn">燃尽后追加滑行</option>
+                  </select>
+                </label>
+                <label for="energyCoastPercent" id="energyCoastField" hidden>追加滑行
+                  <span class="energy-percent-input"><input class="input" id="energyCoastPercent" type="number" min="0" max="200" step="1"><b>% 燃时</b></span>
+                </label>
+                <label for="energyUnitSelect">显示单位
+                  <select class="select select-compact" id="energyUnitSelect">
+                    <option value="auto">自动</option>
+                    <option value="TJ">TJ</option>
+                    <option value="GJ">GJ</option>
+                    <option value="MJ">MJ</option>
+                    <option value="kJ">kJ</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div class="metric-strip" id="energyMetrics"></div>
+            <div class="energy-peak-heading">动能峰值时刻</div>
+            <div class="metric-strip energy-peak-metrics" id="energyPeakMetrics"></div>
+            <div class="chart-wrap energy-chart-wrap">
+              <svg id="energyChart" class="chart energy-chart" viewBox="0 0 880 390" role="img" aria-label="总能量、化学能、重力势能和飞船动能共用纵轴的时间统计图"></svg>
+            </div>
+            <p class="energy-assumption" id="energyAssumption"></p>
+          </div>
+
+          <div class="result-panel" data-result-panel="static" role="tabpanel">
+            <div class="metric-strip" id="staticMetrics"></div>
+            <div class="chart-wrap">
+              <svg id="staticChart" class="chart" viewBox="0 0 880 330" role="img" aria-label="地面试车推力、室压、泵功率和壁温时序图"></svg>
+            </div>
+          </div>
+
+          <div class="result-panel" data-result-panel="cost" role="tabpanel">
+            <div class="cost-summary" id="costSummary"></div>
+            <div class="common-bulkhead-advantages" id="commonBulkheadAdvantages" hidden></div>
+            <div class="table-wrap"><table class="data-table"><thead><tr><th>部件</th><th>质量</th><th>材料 / 推进剂与工艺</th><th>参考单价</th><th>综合倍率</th><th>概算</th></tr></thead><tbody id="bomBody"></tbody></table></div>
+            <details class="material-library" open>
+              <summary>材料参考库 · 绝对值与 304L 相对值</summary>
+              <div class="table-wrap">
+                <table class="data-table material-table">
+                  <thead><tr><th>材料</th><th>密度</th><th>屈服 / 抗拉</th><th>相对强度</th><th>比屈服强度</th><th>弹性模量 / 代表 CTE</th><th>温区 / 高温系数</th><th>参考价 / 稀缺度</th></tr></thead>
+                  <tbody id="materialTableBody"></tbody>
+                </table>
+              </div>
+            </details>
+            <details class="material-library" open>
+              <summary>储箱制造工艺参考 · 接头、缺陷、损耗与成本修正</summary>
+              <div class="table-wrap">
+                <table class="data-table material-table">
+                  <thead><tr><th>工艺</th><th>适用材料族</th><th>强度修正</th><th>接头效率</th><th>备料损耗</th><th>难度</th><th>主要收益与限制</th></tr></thead>
+                  <tbody id="tankProcessTableBody"></tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+
+          <div class="result-panel" data-result-panel="formula" role="tabpanel">
+            <div class="formula-list" id="formulaList"></div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="inspector-panel" aria-label="校核与部件数据">
+        <section class="inspector-section">
+          <div class="panel-heading compact">
+            <div><span class="section-kicker">DESIGN CHECK</span><h2>校核告警</h2></div>
+            <span class="issue-count" id="issueCount">0</span>
+          </div>
+          <div id="issueList" class="issue-list" aria-live="polite"></div>
+        </section>
+        <section class="inspector-section">
+          <div class="panel-heading compact"><div><span class="section-kicker">COMPONENT DATA</span><h2>部件快照</h2></div></div>
+          <div id="componentSnapshot" class="snapshot-list"></div>
+        </section>
+        <section class="inspector-section source-section">
+          <div class="panel-heading compact"><div><span class="section-kicker">REFERENCE</span><h2>数据来源</h2></div></div>
+          <div id="sourceList" class="source-list"></div>
+          <p>材料、推进剂、工艺与价格均为教学代表值，实际值随牌号、状态、温度、批次和供应链变化。</p>
+        </section>
+      </aside>
+    </div>
+
+    <footer class="app-footer">
+      <strong>教学级工程估算</strong>
+      <span>不用于制造定型、载人任务、安全认证、危险化学品操作或发射决策。</span>
+      <span>数据集 v1 · SI 单位 · 成本为人民币参考概算</span>
+    </footer>
+  </div>
+
+  <dialog id="saveDialog" class="dialog">
+    <form method="dialog" id="saveForm">
+      <div class="dialog-heading"><div><span class="section-kicker">LOCAL DESIGN LIBRARY</span><h2>保存当前方案</h2></div><button type="submit" class="dialog-close" value="cancel" aria-label="关闭">×</button></div>
+      <label class="field full-span"><span>方案名称</span><input class="input" id="saveNameInput" type="text" maxlength="40" required></label>
+      <div class="dialog-actions"><button class="button button-ghost" type="submit" value="cancel">取消</button><button class="button button-primary" id="confirmSaveBtn" type="button">保存到本机</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="compareDialog" class="dialog dialog-wide">
+    <form method="dialog">
+      <div class="dialog-heading"><div><span class="section-kicker">A / B COMPARISON</span><h2>双方案比较</h2></div><button type="submit" class="dialog-close" value="cancel" aria-label="关闭">×</button></div>
+      <div class="compare-selectors">
+        <label class="field"><span>方案 A</span><select class="select" id="compareA"></select></label>
+        <label class="field"><span>方案 B</span><select class="select" id="compareB"></select></label>
+      </div>
+      <div id="compareContent" class="compare-content"></div>
+      <div class="saved-library"><h3>本地方案库</h3><div id="savedDesignList"></div></div>
+      <div class="dialog-actions"><button class="button button-primary" type="submit">完成</button></div>
+    </form>
+  </dialog>
+
+  <div class="control-tooltip" id="controlTooltip" role="tooltip" hidden>
+    <strong class="control-tooltip-title" id="controlTooltipTitle"></strong>
+    <span class="control-tooltip-description" id="controlTooltipDescription"></span>
+    <span class="control-tooltip-parameters" id="controlTooltipParameters"></span>
+    <span class="control-tooltip-option" id="controlTooltipOption" hidden></span>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/core/utils.js"></script>
+  <script src="js/core/environment.js"></script>
+  <script src="js/core/engine-flow.js"></script>
+  <script src="js/core/materials.js"></script>
+  <script src="js/core/tank-geometry.js"></script>
+  <script src="js/core/engine-design.js"></script>
+  <script src="js/core/config.js"></script>
+  <script src="js/core/boosters.js"></script>
+  <script src="js/core/sizing.js"></script>
+  <script src="js/core/serial-stages.js"></script>
+  <script src="js/core/flight-core.js"></script>
+  <script src="js/core/flight-parallel.js"></script>
+  <script src="js/core/flight-serial.js"></script>
+  <script src="js/core/static-fire.js"></script>
+  <script src="js/core/energy.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/audio-model.js"></script>
+  <script src="js/app/app-context.js"></script>
+  <script src="js/app/ui-format.js"></script>
+  <script src="js/app/render-rocket.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
