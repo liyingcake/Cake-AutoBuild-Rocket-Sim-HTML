@@ -29,6 +29,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function (Data, Utils, Env, Flow, Mat, TankGeom, Eng, Cfg, root) {
   "use strict";
 
+  const I18n = root.RocketSimI18n || null;
   const G0 = Utils.G0;
   const clamp = Utils.clamp;
   const round = Utils.round;
@@ -1837,13 +1838,25 @@
     };
     const roundedDiameter = round(Math.max(0.1, Number(diameterM) || 0.1), Number(diameterM) >= 3 ? 1 : 2);
     const diameterText = Number.isInteger(roundedDiameter) ? roundedDiameter.toFixed(0) : String(roundedDiameter);
-    const propellantText = propellantLabels[config.propellantKey]
-      || String(propellant.shortName || propellant.name || "自定义推进剂").replace(/[\s/‑-]+/g, "");
-    const cycleText = cycleLabels[config.engine.cycleKey] || (Data.cycles[config.engine.cycleKey] ? Data.cycles[config.engine.cycleKey].name : "发动机");
-    const boosterText = config.boosters.enabled ? `-${config.boosters.count}助推并联` : "";
+    const english = I18n && I18n.getLocale() === "en-US";
+    const propellantText = english
+      ? String(propellant.shortName || propellant.name || "Custom propellant")
+      : (propellantLabels[config.propellantKey]
+        || String(propellant.shortName || propellant.name || "自定义推进剂").replace(/[\s/‑-]+/g, ""));
+    const cycleText = english
+      ? (Data.cycles[config.engine.cycleKey] ? Data.cycles[config.engine.cycleKey].name : "Engine")
+      : (cycleLabels[config.engine.cycleKey] || (Data.cycles[config.engine.cycleKey] ? Data.cycles[config.engine.cycleKey].name : "发动机"));
+    const boosterText = config.boosters.enabled
+      ? (I18n ? I18n.t("design.boosters", { count: config.boosters.count }, `-${config.boosters.count}助推并联`) : `-${config.boosters.count}助推并联`)
+      : "";
     const enabledUpperStages = Array.isArray(config.stages) ? config.stages.filter(function (stage) { return stage.enabled; }).length : 0;
-    const stageText = enabledUpperStages ? `-${enabledUpperStages + 1}级` : "";
-    return `${diameterText}米级-${propellantText}-${cycleText}${boosterText}${stageText}火箭`;
+    const stageText = enabledUpperStages
+      ? (I18n ? I18n.t("design.stages", { count: enabledUpperStages + 1 }, `-${enabledUpperStages + 1}级`) : `-${enabledUpperStages + 1}级`)
+      : "";
+    const fallback = `${diameterText}米级-${propellantText}-${cycleText}${boosterText}${stageText}火箭`;
+    return I18n
+      ? I18n.t("design.generatedName", { diameter: diameterText, propellant: propellantText, cycle: cycleText, boosters: boosterText, stages: stageText }, fallback)
+      : fallback;
   }
 
   function calculateDesign(input) {

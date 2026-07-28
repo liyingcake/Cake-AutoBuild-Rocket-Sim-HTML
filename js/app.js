@@ -4,6 +4,8 @@
   const Data = window.RocketSimData;
   const Core = window.RocketSimCore;
   const AudioModel = window.RocketSimAudioModel;
+  const I18n = window.RocketSimI18n;
+  if (I18n) I18n.applyData(Data);
 
   // Import extracted module namespaces
   const AppCtx = window.AppCtx || {};
@@ -2865,28 +2867,18 @@
 
   function speakCountdownNumber(value) {
     if (!state.soundEnabled || typeof window.speechSynthesis === "undefined" || typeof window.SpeechSynthesisUtterance === "undefined") return;
-    const words = {
-      10: "十",
-      9: "九",
-      8: "八",
-      7: "七",
-      6: "六",
-      5: "五",
-      4: "四",
-      3: "三",
-      2: "二",
-      1: "一"
-    };
-    if (!words[value]) return;
-    const utterance = new window.SpeechSynthesisUtterance(words[value]);
-    utterance.lang = "zh-CN";
+    const spoken = I18n ? I18n.speechNumber(value) : ({ 10: "十", 9: "九", 8: "八", 7: "七", 6: "六", 5: "五", 4: "四", 3: "三", 2: "二", 1: "一" })[value];
+    if (!spoken) return;
+    const utterance = new window.SpeechSynthesisUtterance(spoken);
+    utterance.lang = I18n ? I18n.speechLang() : "zh-CN";
     utterance.rate = 0.92;
     utterance.pitch = 0.86;
     utterance.volume = clampValue(state.audioSettings.masterVolume, 0, 1);
-    const chineseVoice = window.speechSynthesis.getVoices().find(function (voice) {
-      return /^zh(?:-|_)/i.test(voice.lang || "");
+    const languagePrefix = utterance.lang.split("-")[0];
+    const localizedVoice = window.speechSynthesis.getVoices().find(function (voice) {
+      return new RegExp("^" + languagePrefix + "(?:-|_)", "i").test(voice.lang || "");
     });
-    if (chineseVoice) utterance.voice = chineseVoice;
+    if (localizedVoice) utterance.voice = localizedVoice;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   }
@@ -3612,6 +3604,11 @@
   }
 
   function bindEvents() {
+    if (els.languageSelect && I18n) {
+      els.languageSelect.addEventListener("change", function () {
+        I18n.setLocale(els.languageSelect.value);
+      });
+    }
     els.designForm.addEventListener("input", onBoundControl);
     els.designForm.addEventListener("change", onBoundControl);
     els.historicalPresetSelect.addEventListener("change", renderHistoricalPresetReadout);
@@ -3745,7 +3742,7 @@
 
   function cacheElements() {
     [
-      "toast", "controlTooltip", "controlTooltipTitle", "controlTooltipDescription", "controlTooltipParameters", "controlTooltipOption", "historicalPresetSelect", "historicalPresetReadout", "loadHistoricalPresetBtn", "propellantSelect", "boosterPropellantSelect", "cycleSelect", "boosterCycleSelect", "coolingSelect", "stagePropellantSelect", "stageCycleSelect", "stageCoolingSelect", "designForm", "designSectionNav", "addSerialStageBtn", "coreStepNav", "stepCount", "prevStepBtn", "nextStepBtn", "restoreDefaultBtn", "resetStructuralFactorBtn", "resetPriceTuningBtn", "priceDebugDetails",
+      "toast", "controlTooltip", "controlTooltipTitle", "controlTooltipDescription", "controlTooltipParameters", "controlTooltipOption", "languageSelect", "historicalPresetSelect", "historicalPresetReadout", "loadHistoricalPresetBtn", "propellantSelect", "boosterPropellantSelect", "cycleSelect", "boosterCycleSelect", "coolingSelect", "stagePropellantSelect", "stageCycleSelect", "stageCoolingSelect", "designForm", "designSectionNav", "addSerialStageBtn", "coreStepNav", "stepCount", "prevStepBtn", "nextStepBtn", "restoreDefaultBtn", "resetStructuralFactorBtn", "resetPriceTuningBtn", "priceDebugDetails",
       "statusDot", "statusText", "designNameHeader", "designNameInput", "autoNameToggle", "autoNamePreview", "rocketWisdom", "rocketWisdomKind", "rocketWisdomText", "rocketWisdomAttribution", "summaryDv", "summaryDvNote", "summaryCost", "summaryCostNote", "summaryCostShares", "summaryMass", "summaryMassNote", "summaryMassShares", "summaryDryMassShares", "includePayloadInDryBreakdown", "summaryThrust", "summaryThrustNote", "summaryAccelNote",
       "propellantReadout", "boosterReadout", "tankMaterialReadout", "cycleReadout", "clusterArchitectureSelect", "clusterReadout", "batterySelect", "batteryReadout", "customPropDetails", "serialStageKicker", "serialStageHeading", "serialStageCarryNote", "deleteSerialStageBtn", "serialStageReadout", "serialStagePropellantReadout", "serialStageSeparationReadout", "stagePropellantCopySource", "stageTankCopySource", "stageEngineCopySource", "rocketSvg", "rocketStage", "visualCaption", "scaleZoom", "scaleZoomOut",
       "staticRunBtn", "flightRunBtn", "animationPauseBtn", "animationResetBtn", "playbackSpeed", "environmentScenarioSelect", "launchSequenceSettings", "launchSequenceStatus", "countdownEnabled", "immersiveLaunch", "autoPauseAfterBurnout", "countdownSeconds", "launchModeSelect", "engineStartupSeconds", "soundToggleBtn", "soundMixer", "soundMixStatus", "soundMasterVolume", "soundMasterVolumeOut", "soundIgnitionVolume", "soundIgnitionVolumeOut", "soundRumbleVolume", "soundRumbleVolumeOut", "soundJetVolume", "soundJetVolumeOut", "soundAutoFade", "soundVacuumAttenuation", "dynamicTelemetry", "animationPhase", "animationEnvironment", "animationClock", "animationAltitude", "animationMotion", "animationDynamicPressure", "animationThrottle", "animationLaunchState", "fuelRemainLabel", "fuelRemainBar", "fuelRemainValue", "oxidizerRemainRow", "oxidizerRemainBar", "oxidizerRemainValue", "boosterRemainRow", "boosterRemainBar", "boosterRemainValue", "flightLiveStrip", "flightLiveAltitude", "flightLiveVelocity", "flightLiveAcceleration", "flightLiveAccelerationDetail", "flightLiveDynamicPressure", "flightLiveTimeScale", "engineLiveStrip", "engineAmbientPressure", "engineExitPressure", "engineCurrentThrust", "engineMassFlow", "engineMassFlowDetail", "engineExhaustVelocity",
@@ -3757,6 +3754,24 @@
 
   function init() {
     cacheElements();
+    if (I18n) {
+      els.languageSelect.value = I18n.getLocale();
+      I18n.onChange(function (locale) {
+        I18n.applyData(Data);
+        els.languageSelect.value = locale;
+        cancelCountdownVoice(false);
+        state.result = Core.calculateDesign(state.config);
+        if (state.config.autoName) {
+          state.config.name = state.result.config.name;
+          els.designNameInput.value = state.config.name;
+          saveCurrentConfig();
+        }
+        renderSources();
+        renderAll();
+        I18n.translateDom(document);
+      });
+      I18n.observe(document);
+    }
     initializeStickySummary();
     initializeRocketWisdom();
     syncAudioControls();
@@ -3770,6 +3785,7 @@
     setResultTab("overview");
     setView("scale");
     calculateAndRender();
+    if (I18n) I18n.translateDom(document);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

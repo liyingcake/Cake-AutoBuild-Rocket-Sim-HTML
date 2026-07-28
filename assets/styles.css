@@ -271,6 +271,30 @@ small {
   gap: 7px;
 }
 
+.language-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 4px 5px 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.018);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.language-select {
+  min-height: 26px;
+  padding: 3px 24px 3px 7px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--foreground);
+  background-color: var(--surface);
+  font: inherit;
+}
+
 .button {
   min-height: 36px;
   padding: 7px 12px;
@@ -2736,6 +2760,11 @@ tr.common-bulkhead-net td:nth-child(2) {
   .header-actions .button {
     flex: 1 1 auto;
     text-align: center;
+  }
+
+  .language-control {
+    flex: 1 1 100%;
+    justify-content: space-between;
   }
 
   .design-status {
