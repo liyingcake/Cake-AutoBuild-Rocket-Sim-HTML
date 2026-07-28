@@ -1,6 +1,6 @@
-# Rocket SIM
+# Cake AutoBuild Rocket SIM
 
-离线运行的中文单级液体/单组元火箭概念设计、试车与一维直飞教学模拟器。
+离线运行的中文火箭概念设计、试车与一维直飞教学模拟器，可按任务指标、组件材料和发动机循环动态生成尺寸、性能与制造成本。
 
 ## 运行
 
@@ -43,7 +43,7 @@
 在仓库根目录执行：
 
 ```powershell
-node ".\Rocket SIM\tests\verify-rocket-sim.cjs"
+node ".\tests\verify-rocket-sim.cjs"
 ```
 
 ## 重要边界
